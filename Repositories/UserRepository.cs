@@ -24,7 +24,6 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByIdAsync(int id)
     {
         return await _dbContext.Users
-            .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
@@ -39,5 +38,11 @@ public class UserRepository : IUserRepository
     {
         return await _dbContext.Users
             .AnyAsync(u => u.Username.ToLower() == username.ToLower());
+    }
+    
+    public async Task UpdateAsync(User user)
+    {
+        _dbContext.Users.Update(user);
+        await _dbContext.SaveChangesAsync();
     }
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using FluentValidation;
 using GameStoreApi.Data;
 using GameStoreApi.Services;
 using GameStoreApi.Services.Interfaces;
@@ -6,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using GameStoreApi.Mapping;
 using GameStoreApi.Repositories;
 using GameStoreApi.Repositories.Interfaces;
+using GameStoreApi.Validators;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using SharpGrip.FluentValidation.AutoValidation.Mvc.Extensions;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -69,6 +72,10 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 
 // Add Controllers
 builder.Services.AddControllers();
+
+// Add Fluent Validations
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterDtoValidator>();
 
 // Add API Docs
 builder.Services.AddEndpointsApiExplorer();

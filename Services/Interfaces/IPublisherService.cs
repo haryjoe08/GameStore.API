@@ -4,9 +4,9 @@ namespace GameStoreApi.Services.Interfaces;
 
 public interface IPublisherService
 {
-    Task<ApiResponse<IEnumerable<PublisherResponseDto>>> GetAllPublishersAsync();
-    Task<ApiResponse<PublisherResponseDto>> GetPublisherByIdAsync(int id);
-    Task<ApiResponse<PublisherResponseDto>> CreatePublisherAsync(CreatePublisherDto dto);
-    Task<ApiResponse<PublisherResponseDto>> UpdatePublisherAsync(int id, CreatePublisherDto dto);
-    Task<ApiResponse<bool>> DeletePublisherAsync(int id);
+    Task<ServiceResult<IEnumerable<PublisherResponseDto>>> GetAllPublishersAsync();
+    Task<ServiceResult<PublisherResponseDto>> GetPublisherByIdAsync(int id);
+    Task<ServiceResult<PublisherResponseDto>> CreatePublisherAsync(CreatePublisherDto dto);
+    Task<ServiceResult<PublisherResponseDto>> UpdatePublisherAsync(int id, CreatePublisherDto dto);
+    Task<ServiceResult<bool>> DeletePublisherAsync(int id);
 }

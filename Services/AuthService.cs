@@ -20,11 +20,11 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<ApiResponse<AuthResponseDto>> RegisterAsync(RegisterDto dto)
+    public async Task<ServiceResult<RegisterResponseDto>> RegisterAsync(RegisterDto dto)
     {
         if (await _userRepository.ExistsAsync(dto.Username))
         {
-            return ApiResponse<AuthResponseDto>.Failure("Username is already taken.");
+            return ServiceResult<RegisterResponseDto>.Failure("Username is already taken.");
         }
 
         var user = new User
@@ -37,23 +37,54 @@ public class AuthService : IAuthService
         await _userRepository.CreateAsync(user);
 
         var token = GenerateJwtToken(user);
-        var response = new AuthResponseDto(token, user.Username);
+        var response = new RegisterResponseDto(user.Username, user.Email);
 
-        return ApiResponse<AuthResponseDto>.Success(response, "User registered successfully.");
+        return ServiceResult<RegisterResponseDto>.Success(response, "User registered successfully.");
     }
 
-    public async Task<ApiResponse<AuthResponseDto>> LoginAsync(LoginDto dto)
+    public async Task<ServiceResult<AuthResponseDto>> LoginAsync(LoginDto dto)
     {
         var user = await _userRepository.GetByUsernameAsync(dto.Username);
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
         {
-            return ApiResponse<AuthResponseDto>.Failure("Invalid username or password.");
+            return ServiceResult<AuthResponseDto>.Failure("Invalid username or password.");
         }
 
         var token = GenerateJwtToken(user);
         var response = new AuthResponseDto(token, user.Username);
 
-        return ApiResponse<AuthResponseDto>.Success(response, "Login successful.");
+        return ServiceResult<AuthResponseDto>.Success(response, "Login successful.");
+    }
+
+    public async Task<ServiceResult<UserProfileDto>> GetUserProfileAsync(int userId)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+        {
+            return ServiceResult<UserProfileDto>.Failure("User not found.");
+        }
+
+        var profileDto = new UserProfileDto(user.Id, user.Username, user.Email);
+        return ServiceResult<UserProfileDto>.Success(profileDto, "User profile retrieved successfully.");
+    }
+
+    public async Task<ServiceResult<bool>> ChangePasswordAsync(int userId, ChangePasswordDto dto)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+        {
+            return ServiceResult<bool>.Failure("User not found.");
+        }
+        
+        if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+        {
+            return ServiceResult<bool>.Failure("Current password is incorrect.");
+        }
+        
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        await _userRepository.UpdateAsync(user);
+
+        return ServiceResult<bool>.Success(true, "Password changed successfully.");
     }
 
     private string GenerateJwtToken(User user)

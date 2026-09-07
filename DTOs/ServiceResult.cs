@@ -1,6 +1,6 @@
 namespace GameStoreApi.DTOs;
 
-public class ApiResponse<T>
+public class ServiceResult<T>
 {
     public bool IsSuccess { get; set; }
     public T? Data { get; set; }
@@ -8,9 +8,9 @@ public class ApiResponse<T>
 
     public List<string> Errors { get; set; } = new List<string>();
     
-    public static ApiResponse<T> Success(T data, string message = "Success")
+    public static ServiceResult<T> Success(T data, string message = "Success")
     {
-        return new ApiResponse<T>
+        return new ServiceResult<T>
         {
             IsSuccess = true,
             Data = data,
@@ -18,9 +18,9 @@ public class ApiResponse<T>
         };
     }
     
-    public static ApiResponse<T> Failure(string message, List<string>? errors = null)
+    public static ServiceResult<T> Failure(string message, List<string>? errors = null)
     {
-        return new ApiResponse<T>
+        return new ServiceResult<T>
         {
             IsSuccess = false,
             Data = default,
