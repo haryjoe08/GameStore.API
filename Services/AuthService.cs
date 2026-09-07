@@ -64,7 +64,7 @@ public class AuthService : IAuthService
             return ServiceResult<UserProfileDto>.Failure("User not found.");
         }
 
-        var profileDto = new UserProfileDto(user.Id, user.Username, user.Email);
+        var profileDto = new UserProfileDto(user.Id, user.Email, user.Username);
         return ServiceResult<UserProfileDto>.Success(profileDto, "User profile retrieved successfully.");
     }
 
@@ -75,12 +75,12 @@ public class AuthService : IAuthService
         {
             return ServiceResult<bool>.Failure("User not found.");
         }
-        
+
         if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
         {
             return ServiceResult<bool>.Failure("Current password is incorrect.");
         }
-        
+
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         await _userRepository.UpdateAsync(user);
 
