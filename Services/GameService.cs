@@ -1,109 +1,125 @@
-using GameStoreApi.Data;
+using AutoMapper;
 using GameStoreApi.DTOs;
 using GameStoreApi.Models;
+using GameStoreApi.Repositories.Interfaces;
 using GameStoreApi.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
 
 namespace GameStoreApi.Services;
 
 public class GameService : IGameService
 {
-    private readonly GameStoreDbContext _dbContext;
+    private readonly IGameRepository _gameRepository;
+    private readonly IPublisherRepository _publisherRepository;
+    private readonly IGenreRepository _genreRepository;
+    private readonly ITransactionRepository _transactionRepository;
+    private readonly IMapper _mapper;
 
-    public GameService(GameStoreDbContext dbContext)
+    public GameService(
+        IGameRepository gameRepository,
+        IMapper mapper, IGenreRepository genreRepository, IPublisherRepository publisherRepository,
+        ITransactionRepository transactionRepository)
     {
-        _dbContext = dbContext;
+        _gameRepository = gameRepository;
+        _publisherRepository = publisherRepository;
+        _genreRepository = genreRepository;
+        _transactionRepository = transactionRepository;
+        _mapper = mapper;
     }
 
-    public async Task<IEnumerable<GameResponseDto>> GetAllGamesAsync()
+    public async Task<ApiResponse<IEnumerable<GameResponseDto>>> GetAllGamesAsync()
     {
-        return await _dbContext.Games
-            .Include(g => g.Publisher)
-            .Include(g => g.Genre)
-            .Select(g => new GameResponseDto
-            {
-                Id = g.Id,
-                Title = g.Title,
-                Price = g.Price,
-                Stock = g.Stock,
-                PublisherName = g.Publisher != null ? g.Publisher.Name : "N/A",
-                GenreName = g.Genre != null ? g.Genre.Name : "N/A"
-            })
-            .ToListAsync();
+        var games = await _gameRepository.GetAllAsync();
+
+        var gameDtos = _mapper.Map<IEnumerable<GameResponseDto>>(games);
+        return ApiResponse<IEnumerable<GameResponseDto>>.Success(gameDtos, "Game list retrieved successfully.");
     }
 
-    public async Task<GameResponseDto?> CreateGameAsync(CreateGameDto dto)
+    public async Task<ApiResponse<GameResponseDto>> GetGameByIdAsync(int id)
     {
-        var publisherExists = await _dbContext.Publishers.AnyAsync(p => p.Id == dto.PublisherId);
-        var genreExists = await _dbContext.Genres.AnyAsync(g => g.Id == dto.GenreId);
+        var game = await _gameRepository.GetByIdAsync(id);
+
+        if (game == null)
+        {
+            return ApiResponse<GameResponseDto>.Failure("Game not found.");
+        }
+
+        var gameDto = _mapper.Map<GameResponseDto>(game);
+        return ApiResponse<GameResponseDto>.Success(gameDto, "Game details retrieved successfully.");
+    }
+
+    public async Task<ApiResponse<GameResponseDto>> CreateGameAsync(CreateGameDto dto)
+    {
+        if (dto.Price <= 0)
+        {
+            return ApiResponse<GameResponseDto>.Failure("Price must be greater than 0.");
+        }
+
+        if (dto.Stock < 0)
+        {
+            return ApiResponse<GameResponseDto>.Failure("Stock cannot be negative.");
+        }
+
+        var publisherExists = await _publisherRepository.ExistsAsync(dto.PublisherId);
+        var genreExists = await _genreRepository.ExistsAsync(dto.GenreId);
 
         if (!publisherExists || !genreExists)
         {
-            throw new KeyNotFoundException("Publisher atau Genre tidak ditemukan.");
+            return ApiResponse<GameResponseDto>.Failure("Invalid PublisherId or GenreId.");
         }
 
-        var game = new Game
+        var game = _mapper.Map<Game>(dto);
+        var createdGame = await _gameRepository.CreateAsync(game);
+
+        var gameDto = _mapper.Map<GameResponseDto>(createdGame);
+        return ApiResponse<GameResponseDto>.Success(gameDto, "Game created successfully.");
+    }
+
+    public async Task<ApiResponse<GameResponseDto>> UpdateGameAsync(int id, CreateGameDto dto)
+    {
+        var game = await _gameRepository.GetByIdAsync(id);
+        if (game == null)
         {
-            Title = dto.Title,
-            Price = dto.Price,
-            Stock = dto.Stock,
-            PublisherId = dto.PublisherId,
-            GenreId = dto.GenreId
-        };
+            return ApiResponse<GameResponseDto>.Failure("Game not found.");
+        }
 
-        _dbContext.Games.Add(game);
-        await _dbContext.SaveChangesAsync();
-        
-        return await GetGameByIdAsync(game.Id);
+        if (dto.Price <= 0 || dto.Stock < 0)
+        {
+            return ApiResponse<GameResponseDto>.Failure("Price must be greater than 0 and stock cannot be negative.");
+        }
+
+        var publisherExists = await _publisherRepository.ExistsAsync(dto.PublisherId);
+        var genreExists = await _genreRepository.ExistsAsync(dto.GenreId);
+        if (!publisherExists || !genreExists)
+        {
+            return ApiResponse<GameResponseDto>.Failure("Publisher or Genre not found.");
+        }
+
+        _mapper.Map(dto, game);
+
+        var updatedGame = await _gameRepository.UpdateAsync(game);
+
+        var gameDto = _mapper.Map<GameResponseDto>(updatedGame);
+        return ApiResponse<GameResponseDto>.Success(gameDto, "Game updated successfully.");
     }
 
-    public async Task<GameResponseDto?> GetGameByIdAsync(int id)
+    public async Task<ApiResponse<bool>> DeleteGameAsync(int id)
     {
-        return await _dbContext.Games
-            .Where(g => g.Id == id)
-            .Select(g => new GameResponseDto
-            {
-                Id = g.Id,
-                Title = g.Title,
-                Price = g.Price,
-                Stock = g.Stock,
-                // EF Core otomatis paham cara INNER JOIN ke tabel Publisher & Genre
-                PublisherName = g.Publisher != null ? g.Publisher.Name : "N/A",
-                GenreName = g.Genre != null ? g.Genre.Name : "N/A"
-            })
-            .FirstOrDefaultAsync();
-    }
+        var exists = await _gameRepository.ExistsAsync(id);
+        if (!exists)
+        {
+            return ApiResponse<bool>.Failure("Game not found.");
+        }
 
-    public async Task<GameResponseDto?> UpdateGameAsync(int id, CreateGameDto dto)
-    {
-        var game = await _dbContext.Games.FindAsync(id);
-        if (game == null) return null;
+        var allTransactions = await _transactionRepository.GetAllAsync();
+        var hasTransactions = allTransactions.Any(t => t.GameId == id);
 
-        // Cek validasi Foreign Key jika diubah
-        var publisherExists = await _dbContext.Publishers.AnyAsync(p => p.Id == dto.PublisherId);
-        var genreExists = await _dbContext.Genres.AnyAsync(g => g.Id == dto.GenreId);
-        if (!publisherExists || !genreExists) return null;
+        if (hasTransactions)
+        {
+            return ApiResponse<bool>.Failure("Cannot delete game because it has associated transaction history.");
+        }
 
-        // Update data
-        game.Title = dto.Title;
-        game.Price = dto.Price;
-        game.Stock = dto.Stock;
-        game.PublisherId = dto.PublisherId;
-        game.GenreId = dto.GenreId;
+        await _gameRepository.DeleteAsync(id);
 
-        await _dbContext.SaveChangesAsync();
-
-        // Mengembalikan data game terbaru (lengkap dengan PublisherName & GenreName)
-        return await GetGameByIdAsync(game.Id);
-    }
-
-    public async Task<bool> DeleteGameAsync(int id)
-    {
-        var game = await _dbContext.Games.FindAsync(id);
-        if (game == null) return false;
-
-        _dbContext.Games.Remove(game);
-        await _dbContext.SaveChangesAsync();
-        return true;
+        return ApiResponse<bool>.Success(true, "Game deleted successfully.");
     }
 }

@@ -1,75 +1,81 @@
-using GameStoreApi.Data;
+using AutoMapper;
 using GameStoreApi.DTOs;
 using GameStoreApi.Models;
+using GameStoreApi.Repositories.Interfaces;
 using GameStoreApi.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
 
 namespace GameStoreApi.Services;
 
 public class TransactionService : ITransactionService
 {
-    private readonly GameStoreDbContext _dbContext;
+    private readonly ITransactionRepository _transactionRepository;
+    private readonly IGameRepository _gameRepository;
+    private readonly IMapper _mapper;
 
-    public TransactionService(GameStoreDbContext dbContext)
+    public TransactionService(
+        ITransactionRepository transactionRepository,
+        IGameRepository gameRepository,
+        IMapper mapper)
     {
-        _dbContext = dbContext;
+        _transactionRepository = transactionRepository;
+        _gameRepository = gameRepository;
+        _mapper = mapper;
     }
 
-    public async Task<IEnumerable<TransactionResponseDto?>> GetAllAsync()
+    public async Task<ApiResponse<IEnumerable<TransactionResponseDto>>> GetAllTransactionsAsync()
     {
-        return await _dbContext.Transactions
-            .Select(t => new TransactionResponseDto
-            {
-                Id = t.Id,
-                GameId = t.GameId,
-                GameTitle = t.Game != null ? t.Game.Title : "N/A",
-                Quantity = t.Quantity,
-                TotalPrice = t.TotalPrice,
-                TransactionDate = t.TransactionDate
-            })
-            .ToListAsync();
+        var transactions = await _transactionRepository.GetAllAsync();
+        var transactionDtos = _mapper.Map<IEnumerable<TransactionResponseDto>>(transactions);
+
+        return ApiResponse<IEnumerable<TransactionResponseDto>>.Success(transactionDtos, "Transaction list retrieved successfully.");
     }
 
-    public async Task<TransactionResponseDto?> GetByIdAsync(int id)
+    public async Task<ApiResponse<TransactionResponseDto>> GetTransactionByIdAsync(int id)
     {
-        return await _dbContext.Transactions
-            .Where(t => t.Id == id)
-            .Select(t => new TransactionResponseDto
-            {
-                Id = t.Id,
-                GameId = t.GameId,
-                GameTitle = t.Game != null ? t.Game.Title : "N/A",
-                Quantity = t.Quantity,
-                TotalPrice = t.TotalPrice,
-                TransactionDate = t.TransactionDate
-            })
-            .FirstOrDefaultAsync();
-    }
-
-    public async Task<TransactionResponseDto?> CreateAsync(CreateTransactionDto dto)
-    {
-        var game = await _dbContext.Games.FindAsync(dto.GameId);
-        
-        if (game == null || game.Stock < dto.Quantity)
+        var transaction = await _transactionRepository.GetByIdAsync(id);
+        if (transaction == null)
         {
-            return null;
+            return ApiResponse<TransactionResponseDto>.Failure("Transaction not found.");
         }
-        
-        game.Stock -= dto.Quantity;
 
-        decimal totalPrice = game.Price * dto.Quantity;
-        
-        var transaction = new Transaction
+        var transactionDto = _mapper.Map<TransactionResponseDto>(transaction);
+        return ApiResponse<TransactionResponseDto>.Success(transactionDto, "Transaction details retrieved successfully.");
+    }
+
+    public async Task<ApiResponse<TransactionResponseDto>> CreateTransactionAsync(CreateTransactionDto dto)
+    {
+        // 1. Validasi Kuantitas
+        if (dto.Quantity <= 0)
         {
-            GameId = dto.GameId,
-            Quantity = dto.Quantity,
-            TotalPrice = totalPrice,
-            TransactionDate = DateTime.UtcNow
-        };
-        
-        _dbContext.Transactions.Add(transaction);
-        await _dbContext.SaveChangesAsync();
-        
-        return await GetByIdAsync(transaction.Id);
+            return ApiResponse<TransactionResponseDto>.Failure("Quantity must be greater than 0.");
+        }
+
+        // 2. Cek Keberadaan Game
+        var game = await _gameRepository.GetByIdAsync(dto.GameId);
+        if (game == null)
+        {
+            return ApiResponse<TransactionResponseDto>.Failure("Game not found.");
+        }
+
+        // 3. Validasi Ketersediaan Stok
+        if (game.Stock < dto.Quantity)
+        {
+            return ApiResponse<TransactionResponseDto>.Failure($"Insufficient stock. Available stock: {game.Stock}.");
+        }
+
+        // 4. Kalkulasi Otomatis Total Price & Waktu Transaksi
+        var transaction = _mapper.Map<Transaction>(dto);
+        transaction.TotalPrice = game.Price * dto.Quantity;
+        transaction.TransactionDate = DateTime.UtcNow;
+
+        // 5. Potong Stok Game
+        game.Stock -= dto.Quantity;
+        await _gameRepository.UpdateAsync(game);
+
+        // 6. Simpan Transaksi
+        var createdTransaction = await _transactionRepository.CreateAsync(transaction);
+
+        var transactionDto = _mapper.Map<TransactionResponseDto>(createdTransaction);
+        return ApiResponse<TransactionResponseDto>.Success(transactionDto, "Transaction created successfully.");
     }
 }

@@ -4,7 +4,7 @@ namespace GameStoreApi.Services.Interfaces;
 
 public interface ITransactionService
 {
-    Task<IEnumerable<TransactionResponseDto?>> GetAllAsync();
-    Task<TransactionResponseDto?> GetByIdAsync(int id);
-    Task<TransactionResponseDto?> CreateAsync(CreateTransactionDto dto);
+    Task<ApiResponse<IEnumerable<TransactionResponseDto>>> GetAllTransactionsAsync();
+    Task<ApiResponse<TransactionResponseDto>> GetTransactionByIdAsync(int id);
+    Task<ApiResponse<TransactionResponseDto>> CreateTransactionAsync(CreateTransactionDto dto);
 }

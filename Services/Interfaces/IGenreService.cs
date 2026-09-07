@@ -4,9 +4,9 @@ namespace GameStoreApi.Services.Interfaces;
 
 public interface IGenreService
 {
-    Task<IEnumerable<GenreResponseDto>> GetAllAsync();
-    Task<GenreResponseDto?> GetByIdAsync(int id);
-    Task<GenreResponseDto?> CreateAsync(CreateGenreDto dto);
-    Task<GenreResponseDto?> UpdateAsync(int id, CreateGenreDto dto); // Return DTO (bisa null jika ID tidak ditemukan)
-    Task<bool?> DeleteAsync(int id);
+    Task<ApiResponse<IEnumerable<GenreResponseDto>>> GetAllGenresAsync();
+    Task<ApiResponse<GenreResponseDto>> GetGenreByIdAsync(int id);
+    Task<ApiResponse<GenreResponseDto>> CreateGenreAsync(CreateGenreDto dto);
+    Task<ApiResponse<GenreResponseDto>> UpdateGenreAsync(int id, CreateGenreDto dto);
+    Task<ApiResponse<bool>> DeleteGenreAsync(int id);
 }

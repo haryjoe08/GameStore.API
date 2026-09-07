@@ -18,66 +18,41 @@ public class PublishersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var publishers = await _publisherService.GetAllAsync();
-        return Ok(publishers);
+        var result = await _publisherService.GetAllPublishersAsync();
+        return Ok(result);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var publisher = await _publisherService.GetByIdAsync(id);
-        if (publisher == null) return NotFound("Publisher tidak ditemukan.");
-        return Ok(publisher);
+        var result = await _publisherService.GetPublisherByIdAsync(id);
+        if(!result.IsSuccess) return BadRequest(result);
+        return Ok(result);
     }
 
     [HttpPost]
     public async Task<IActionResult> Create(CreatePublisherDto dto)
     {
-        var createdPublisher = await _publisherService.CreateAsync(dto);
-        if (createdPublisher == null)
-        {
-            return BadRequest("Gagal Menambahkan Publisher.");
-        }
+        var result = await _publisherService.CreatePublisherAsync(dto);
+        if (!result.IsSuccess) return BadRequest(result);
 
-        return Ok(new
-        {
-            Message = "Publisher berhasil ditambahkan!",
-            Data = createdPublisher
-        });
+        return Ok(result);
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, CreatePublisherDto dto)
     {
-        var updatedPublisher = await _publisherService.UpdateAsync(id, dto);
-        if (updatedPublisher == null)
-        {
-            return NotFound(new { Message = "Publisher tidak ditemukan." });
-        }
+        var result = await _publisherService.UpdatePublisherAsync(id, dto);
+        if (!result.IsSuccess) return BadRequest(result);
 
-        return Ok(new
-        {
-            Message = "Publisher berhasil diperbarui!",
-            Data = updatedPublisher
-        });
+        return Ok(result);
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var result = await _publisherService.DeleteAsync(id);
-
-        if (result == null)
-        {
-            return NotFound(new { Message = "Publisher tidak ditemukan." });
-        }
-
-        if (result == false)
-        {
-            return BadRequest(new
-                { Message = "Publisher tidak dapat dihapus karena masih digunakan oleh satu atau lebih Game." });
-        }
-
-        return Ok(new { Message = "Publisher berhasil dihapus." });
+        var result = await _publisherService.DeletePublisherAsync(id);
+        if (!result.IsSuccess) return BadRequest(result);
+        return Ok(result);
     }
 }
